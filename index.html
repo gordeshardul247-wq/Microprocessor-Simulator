@@ -1,0 +1,2252 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>8086 Calculator Simulator – EMU8086-style (Lab Manual Exp. 2)</title>
+  <style>
+    :root {
+      --bg: #0c111c;
+      --panel: #111827;
+      --soft: #172033;
+      --line: #233049;
+      --text: #dbe3f2;
+      --muted: #9aa8c4;
+      --blue: #4c8dff;
+      --blue-t: rgba(76, 141, 255, .16);
+      --green: #3fb950;
+      --red: #f4635b;
+      --amber: #e3b341;
+      --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, Menlo, monospace;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html {
+      height: 100%
+    }
+
+    body {
+      margin: 0;
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.45 var(--sans)
+    }
+
+    [hidden] {
+      display: none !important
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+      color: inherit
+    }
+
+    :focus-visible {
+      outline: 2px solid #8ab4ff;
+      outline-offset: 2px
+    }
+
+    code {
+      font-family: var(--mono)
+    }
+
+    /* header */
+    .top {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--line)
+    }
+
+    .top h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 650
+    }
+
+    .top .sub {
+      color: var(--muted);
+      font-size: 12.5px
+    }
+
+    .file {
+      font: 12px var(--mono);
+      color: #b8c5e2
+    }
+
+    .grow {
+      flex: 1
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--muted)
+    }
+
+    .pill i {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #56648a
+    }
+
+    .pill[data-state=running] {
+      color: #cfe0ff
+    }
+
+    .pill[data-state=running] i {
+      background: var(--blue)
+    }
+
+    .pill[data-state=completed] {
+      color: #aef0b9
+    }
+
+    .pill[data-state=completed] i {
+      background: var(--green)
+    }
+
+    .pill[data-state=error] {
+      color: #ffb4af
+    }
+
+    .pill[data-state=error] i {
+      background: var(--red)
+    }
+
+    /* layout */
+    main {
+      display: grid;
+      grid-template-columns: minmax(360px, 5fr) minmax(0, 7fr);
+      gap: 14px;
+      padding: 14px 18px;
+      min-height: 0
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      min-height: 0;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden
+    }
+
+    .head {
+      padding: 10px 14px;
+      font-size: 12px;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 650;
+      border-bottom: 1px solid var(--line)
+    }
+
+    .right {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-height: 0;
+      min-width: 0
+    }
+
+    /* source */
+    .code {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 8px 0;
+      font: 12.5px/20px var(--mono)
+    }
+
+    .ln {
+      display: flex;
+      white-space: pre;
+      border-left: 3px solid transparent
+    }
+
+    .ln .no {
+      width: 36px;
+      flex: none;
+      text-align: right;
+      padding-right: 10px;
+      color: #566384;
+      user-select: none
+    }
+
+    .ln.macro {
+      background: rgba(255, 255, 255, .025)
+    }
+
+    .ln.exec {
+      background: rgba(76, 141, 255, .24);
+      border-left-color: var(--blue)
+    }
+
+    .ln.invoke {
+      background: rgba(76, 141, 255, .10);
+      border-left-color: rgba(76, 141, 255, .5)
+    }
+
+    .done .ln.exec {
+      background: rgba(63, 185, 80, .17);
+      border-left-color: var(--green)
+    }
+
+    .fail .ln.exec {
+      background: rgba(244, 99, 91, .17);
+      border-left-color: var(--red)
+    }
+
+    .ln.next .no {
+      color: var(--blue)
+    }
+
+    .t-ins {
+      color: #7fb0ff
+    }
+
+    .t-reg {
+      color: #d2a8ff
+    }
+
+    .t-num {
+      color: #ffa657
+    }
+
+    .t-key {
+      color: #ff8b82
+    }
+
+    .t-macro {
+      color: #56d4dd;
+      font-weight: 600
+    }
+
+    .t-label {
+      color: var(--amber)
+    }
+
+    .t-var {
+      color: #c9d3ea
+    }
+
+    .t-cmt {
+      color: #66759a;
+      font-style: italic
+    }
+
+    .note {
+      margin: 0;
+      padding: 9px 14px;
+      border-top: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--muted)
+    }
+
+    /* controls */
+    .bar {
+      display: flex;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 14px;
+      padding: 12px 14px
+    }
+
+    .field label,
+    .opset legend {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+      padding: 0
+    }
+
+    input[type=text] {
+      width: 74px;
+      background: #0a1020;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      padding: 6px 8px;
+      font: 600 18px var(--mono);
+      text-align: center
+    }
+
+    input[type=text][aria-invalid=true] {
+      border-color: var(--red)
+    }
+
+    input:disabled {
+      opacity: .55
+    }
+
+    .opset {
+      border: 0;
+      margin: 0;
+      padding: 0;
+      min-width: 0
+    }
+
+    .seg {
+      display: flex
+    }
+
+    .seg label {
+      position: relative
+    }
+
+    .seg input {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      opacity: 0;
+      cursor: pointer
+    }
+
+    .seg span {
+      display: block;
+      min-width: 44px;
+      text-align: center;
+      padding: 6px 0;
+      border: 1px solid var(--line);
+      margin-left: -1px;
+      font: 600 18px var(--mono);
+      background: var(--soft)
+    }
+
+    .seg label:first-child span {
+      border-radius: 5px 0 0 5px;
+      margin-left: 0
+    }
+
+    .seg label:last-child span {
+      border-radius: 0 5px 5px 0
+    }
+
+    .seg input:checked+span {
+      background: var(--blue-t);
+      border-color: var(--blue);
+      position: relative
+    }
+
+    .seg input:focus-visible+span {
+      outline: 2px solid #8ab4ff;
+      outline-offset: 2px
+    }
+
+    .seg input:disabled {
+      cursor: not-allowed
+    }
+
+    .seg input:disabled+span {
+      opacity: .55
+    }
+
+    .btns {
+      display: flex;
+      gap: 8px;
+      margin-left: auto
+    }
+
+    .btn {
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-weight: 600
+    }
+
+    .btn:hover {
+      border-color: var(--blue)
+    }
+
+    .btn.primary {
+      background: #2a5cc7;
+      border-color: #3b72e6;
+      color: #fff
+    }
+
+    .btn[aria-disabled=true] {
+      opacity: .45;
+      cursor: not-allowed
+    }
+
+    .btn[aria-disabled=true]:hover {
+      border-color: var(--line)
+    }
+
+    .msg {
+      margin: 0;
+      padding: 0 14px 12px;
+      font-size: 12.5px
+    }
+
+    .msg.hint {
+      color: var(--muted)
+    }
+
+    .error {
+      margin: 0 14px 12px;
+      padding: 8px 10px;
+      border: 1px solid var(--red);
+      border-radius: 5px;
+      background: rgba(244, 99, 91, .1);
+      color: #ffc2be;
+      font-size: 13px
+    }
+
+    /* data path */
+    .dp {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      display: grid;
+      grid-template-columns: 1fr 18px 1.7fr 18px 1.2fr 18px 1fr;
+      align-content: start;
+      padding: 14px
+    }
+
+    .col {
+      min-width: 0
+    }
+
+    .col h3 {
+      margin: 0 0 8px;
+      font-size: 12px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 650
+    }
+
+    .col h3 small {
+      text-transform: none;
+      letter-spacing: 0;
+      font-weight: 400;
+      margin-left: 5px
+    }
+
+    .arr {
+      align-self: start;
+      text-align: center;
+      color: #3a4767;
+      font-size: 22px;
+      line-height: 24px
+    }
+
+    .r,
+    .reg {
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      margin-bottom: 5px;
+      transition: background .35s, border-color .35s
+    }
+
+    .r.hot,
+    .reg.hot,
+    .alu.hot,
+    .res.hot {
+      background: var(--blue-t);
+      border-color: var(--blue)
+    }
+
+    .r.flash,
+    .reg.flash {
+      background: rgba(63, 185, 80, .16);
+      border-color: var(--green)
+    }
+
+    .k {
+      font-size: 13px;
+      color: var(--muted)
+    }
+
+    .k b {
+      color: var(--text);
+      font-family: var(--mono);
+      margin-right: 6px
+    }
+
+    .v {
+      font: 600 18px var(--mono)
+    }
+
+    .s {
+      font: 13px var(--mono);
+      color: var(--muted)
+    }
+
+    .vs {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      flex-wrap: wrap
+    }
+
+    /* register blocks */
+    .rh {
+      white-space: nowrap;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 5px;
+      font-size: 13px;
+      color: var(--muted)
+    }
+
+    .rh b {
+      color: var(--text);
+      font: 700 15px var(--mono)
+    }
+
+    .rh .rw {
+      margin-left: auto;
+      font: 600 13px var(--mono);
+      color: #b8c5e2
+    }
+
+    .blocks {
+      display: flex;
+      gap: 1px;
+      background: #3a4c74;
+      border: 1px solid #3a4c74;
+      border-radius: 6px;
+      overflow: hidden
+    }
+
+    .blocks.grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr
+    }
+
+    .cell {
+      flex: 1;
+      min-width: 0;
+      padding: 4px 9px 5px;
+      background: #0a1020;
+      transition: background .35s, box-shadow .35s
+    }
+
+    .cl {
+      display: block;
+      font: 600 13px var(--mono);
+      color: var(--muted)
+    }
+
+    .cv {
+      display: block;
+      font: 700 20px/1.25 var(--mono);
+      transform-origin: left center
+    }
+
+    .cell.hot {
+      background: #14284f;
+      box-shadow: inset 0 0 0 2px var(--blue)
+    }
+
+    .cell.flash {
+      background: #10301f;
+      box-shadow: inset 0 0 0 2px var(--green)
+    }
+
+    .cell.flash .cv,
+    .r.flash .v {
+      animation: tick 1s ease-out
+    }
+
+    @keyframes tick {
+      0% {
+        transform: scale(1.2);
+        color: #aef0b9
+      }
+
+      100% {
+        transform: scale(1);
+        color: inherit
+      }
+    }
+
+    .pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px
+    }
+
+    .pair .reg {
+      margin-bottom: 5px;
+      min-width: 0
+    }
+
+    .alu {
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      transition: background .35s, border-color .35s;
+      min-height: 128px
+    }
+
+    .alu .op {
+      font: 13.5px var(--mono);
+      color: #7fb0ff;
+      min-height: 20px
+    }
+
+    .alu .ex {
+      font: 600 19px var(--mono);
+      margin-top: 4px
+    }
+
+    .alu .rs {
+      font: 600 16px var(--mono);
+      color: var(--green);
+      min-height: 24px
+    }
+
+    /* flags */
+    .flagbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-top: 1px solid var(--line)
+    }
+
+    .flagbar h3 {
+      margin: 0 4px 0 0;
+      font-size: 12px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 650
+    }
+
+    .flag {
+      flex: 1;
+      min-width: 200px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 10px 6px 6px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #0d1424;
+      transition: background .35s, border-color .35s, box-shadow .35s
+    }
+
+    .fbox {
+      width: 58px;
+      flex: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2px 0 3px;
+      border-radius: 5px;
+      background: #1a2238;
+      border: 1px solid #3a4c74;
+      color: var(--muted)
+    }
+
+    .fn {
+      font: 700 13px var(--mono)
+    }
+
+    .fv {
+      font: 700 24px/1.1 var(--mono)
+    }
+
+    .ft b {
+      display: block;
+      font-size: 14px
+    }
+
+    .fs {
+      font-size: 13px;
+      color: var(--muted)
+    }
+
+    .flag.on {
+      border-color: var(--amber);
+      background: rgba(227, 179, 65, .09)
+    }
+
+    .flag.on .fbox {
+      background: var(--amber);
+      border-color: var(--amber);
+      color: #1b1500
+    }
+
+    .flag.on .fs {
+      color: #f0d68a
+    }
+
+    .flag.flash {
+      box-shadow: 0 0 0 2px rgba(63, 185, 80, .8)
+    }
+
+    .opwrap {
+      display: flex;
+      gap: 10px
+    }
+
+    .seg span.calc {
+      min-width: 68px;
+      padding: 6px 12px;
+      font-size: 16px;
+      border-radius: 5px;
+      margin-left: 0
+    }
+
+    .seg input:checked+span.calc {
+      background: rgba(63, 185, 80, .16);
+      border-color: var(--green)
+    }
+
+    select {
+      background: #0a1020;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      padding: 8px 8px;
+      font-size: 14px
+    }
+
+    select:disabled {
+      opacity: .55
+    }
+
+    /* footer of right column */
+    .foot {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      padding: 12px 14px;
+      border-top: 1px solid var(--line);
+      align-items: center
+    }
+
+    .cap code {
+      display: block;
+      color: #7fb0ff;
+      font-weight: 600;
+      font-size: 13px
+    }
+
+    .cap span {
+      color: #a9b6d2;
+      font-size: 13px
+    }
+
+    .res {
+      text-align: right;
+      padding: 6px 10px;
+      border-radius: 5px;
+      border: 1px solid transparent;
+      min-width: 150px
+    }
+
+    .res.hot {
+      background: var(--blue-t);
+      border-color: var(--blue)
+    }
+
+    .res .lbl {
+      font-size: 13px;
+      color: var(--muted)
+    }
+
+    .rval {
+      font: 700 32px/1.1 var(--mono)
+    }
+
+    .rval.ok {
+      color: #aef0b9
+    }
+
+    .rval.err {
+      color: #ffb4af
+    }
+
+    .rsub {
+      font: 13px var(--mono);
+      color: var(--muted)
+    }
+
+    .rlist {
+      font: 600 15px/1.5 var(--mono);
+      color: #aef0b9
+    }
+
+    .rlist .err {
+      color: #ffb4af
+    }
+
+    .rlist b {
+      color: #fff
+    }
+
+    /* console */
+    .console {
+      border-top: 1px solid var(--line);
+      background: var(--panel)
+    }
+
+    .con {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 18px;
+      font-size: 12.5px
+    }
+
+    .con strong {
+      font-size: 12.5px;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--muted)
+    }
+
+    #last {
+      flex: 1;
+      min-width: 0;
+      font-family: var(--mono);
+      color: #b4c0da;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    #last.err {
+      color: #ff9d97
+    }
+
+    .con button {
+      background: none;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 1px 10px;
+      cursor: pointer;
+      font-size: 12px
+    }
+
+    #log {
+      max-height: 110px;
+      overflow: auto;
+      padding: 0 18px 8px;
+      font: 12px/1.55 var(--mono);
+      color: #9fb0d0
+    }
+
+    #log div.err {
+      color: #ff9d97
+    }
+
+    #chips {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 50;
+      overflow: hidden
+    }
+
+    .chip {
+      position: absolute;
+      left: 0;
+      top: 0;
+      padding: 3px 12px;
+      border-radius: 13px;
+      background: var(--blue);
+      color: #fff;
+      font: 700 14px var(--mono);
+      box-shadow: 0 2px 14px rgba(76, 141, 255, .55);
+      white-space: nowrap;
+      opacity: 0;
+      will-change: transform, opacity
+    }
+
+    .trail {
+      position: absolute;
+      width: 7px;
+      height: 7px;
+      margin: -3.5px 0 0 -3.5px;
+      border-radius: 50%;
+      background: rgba(127, 176, 255, .6);
+      animation: trail .8s ease-out forwards
+    }
+
+    @keyframes trail {
+      to {
+        opacity: 0;
+        transform: scale(.3)
+      }
+    }
+
+    @media (max-width:1000px) {
+      body {
+        height: auto;
+        display: block
+      }
+
+      main {
+        grid-template-columns: 1fr
+      }
+
+      .panel {
+        overflow: visible
+      }
+
+      .code {
+        max-height: 420px
+      }
+
+      .dp {
+        grid-template-columns: 1fr 1fr;
+        row-gap: 12px;
+        overflow: visible
+      }
+
+      .arr {
+        display: none
+      }
+
+      .foot {
+        grid-template-columns: 1fr
+      }
+
+      .res {
+        text-align: left
+      }
+    }
+
+    @media (prefers-reduced-motion:reduce) {
+      * {
+        transition: none !important;
+        scroll-behavior: auto !important
+      }
+    }
+
+    /* ---- v3: calmer, tighter layout; data flow fits without scrolling ---- */
+    main {
+      grid-template-columns: minmax(340px, 4.6fr) minmax(0, 7.4fr);
+      gap: 12px;
+      padding: 12px 18px
+    }
+
+    .right {
+      gap: 12px
+    }
+
+    .head {
+      padding: 8px 14px
+    }
+
+    .headrow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between
+    }
+
+    .spd {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-transform: none;
+      letter-spacing: 0;
+      font-weight: 500;
+      font-size: 13px
+    }
+
+    .spd select {
+      padding: 3px 6px;
+      font-size: 13px
+    }
+
+    .sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap
+    }
+
+    .bar {
+      padding: 10px 14px;
+      gap: 12px
+    }
+
+    .btn {
+      padding: 7px 14px
+    }
+
+    .error {
+      margin: 0 14px 10px
+    }
+
+    .note {
+      padding: 7px 14px;
+      font-size: 12.5px
+    }
+
+    .ln.exec {
+      background: rgba(76, 141, 255, .36);
+      border-left-color: #8ab4ff
+    }
+
+    .ln.exec .no {
+      color: #fff;
+      font-weight: 700
+    }
+
+    .ln.invoke {
+      background: rgba(76, 141, 255, .14)
+    }
+
+    .ln.macro {
+      background: none
+    }
+
+    .dp {
+      grid-template-columns: 1fr 14px 1.55fr 14px 1.1fr 14px 1fr;
+      padding: 10px 14px;
+      overflow: auto
+    }
+
+    .col h3 {
+      margin-bottom: 6px
+    }
+
+    .r {
+      padding: 4px 8px;
+      margin-bottom: 4px
+    }
+
+    .k {
+      font-size: 13px
+    }
+
+    .v {
+      font: 600 17px/1.3 var(--mono)
+    }
+
+    .s {
+      font: 13px var(--mono);
+      color: var(--muted)
+    }
+
+    .reg {
+      padding: 0;
+      margin-bottom: 6px;
+      border-radius: 7px
+    }
+
+    .rh {
+      margin: 0 2px 3px
+    }
+
+    .rh b {
+      font-size: 14px
+    }
+
+    .cell {
+      padding: 3px 9px 4px
+    }
+
+    .cv {
+      font: 700 19px/1.25 var(--mono)
+    }
+
+    .cell.inl {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 4px 9px
+    }
+
+    .cell.inl .cv {
+      font-size: 16px
+    }
+
+    .pair {
+      gap: 6px
+    }
+
+    .alu {
+      min-height: 96px;
+      padding: 6px 4px
+    }
+
+    .alu .ex {
+      font-size: 18px
+    }
+
+    .flagbar {
+      padding: 8px 14px;
+      gap: 8px
+    }
+
+    .flag {
+      padding: 4px 10px 4px 4px;
+      min-width: 180px
+    }
+
+    .fbox {
+      width: 50px;
+      padding: 1px 0 2px
+    }
+
+    .fv {
+      font-size: 21px
+    }
+
+    .foot {
+      padding: 8px 14px
+    }
+
+    .rval {
+      font-size: 28px
+    }
+
+    @media (max-height:800px) {
+      .note {
+        display: none
+      }
+
+      .cl {
+        font-size: 12.5px
+      }
+
+      .cv {
+        font-size: 18px
+      }
+    }
+
+    /* ---- v4: vertical budget ---- */
+    .headrow {
+      padding: 6px 14px
+    }
+
+    .flagbar {
+      padding: 7px 14px
+    }
+
+    .fbox {
+      width: auto;
+      flex-direction: row;
+      align-items: baseline;
+      gap: 7px;
+      padding: 3px 10px
+    }
+
+    .fv {
+      font-size: 20px;
+      line-height: 1.2
+    }
+
+    .flag {
+      padding: 3px 10px 3px 4px
+    }
+
+    .ft b {
+      font-size: 14px;
+      line-height: 1.25
+    }
+
+    .fs {
+      line-height: 1.25
+    }
+
+    .foot {
+      padding: 7px 14px
+    }
+
+    .cap {
+      min-height: 56px
+    }
+
+    .cap span {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden
+    }
+
+    .error {
+      margin: 0 14px 8px;
+      padding: 5px 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    @media (max-height:760px) {
+      .dp {
+        grid-template-columns: .9fr 14px 1.5fr 14px 1fr 14px 1.7fr
+      }
+
+      #resRows {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 6px;
+        align-content: start
+      }
+    }
+
+    @media (max-height:700px) {
+      .top {
+        padding: 5px 18px
+      }
+
+      .top .sub {
+        display: none
+      }
+
+      .con {
+        padding: 2px 18px
+      }
+
+      main {
+        padding: 8px 18px;
+        gap: 8px
+      }
+
+      .right {
+        gap: 8px
+      }
+
+      .headrow {
+        padding: 3px 14px
+      }
+
+      .bar {
+        padding: 7px 14px
+      }
+
+      .dp {
+        padding: 6px 14px
+      }
+
+      .col h3 {
+        margin-bottom: 4px
+      }
+
+      .flagbar {
+        padding: 5px 14px
+      }
+
+      .foot {
+        padding: 5px 14px
+      }
+    }
+
+    .fs,
+    .ft b {
+      white-space: nowrap
+    }
+
+    .flag {
+      min-width: 170px
+    }
+
+    .rlist {
+      display: grid;
+      grid-template-columns: auto auto;
+      column-gap: 18px;
+      text-align: left;
+      font-size: 14px;
+      line-height: 1.4
+    }
+  </style>
+</head>
+
+<body>
+
+  <header class="top">
+    <h1>8086 Calculator Simulator</h1>
+    <span class="file">Group No: 22 [1054,1046,1066,1039,1015]</span>
+    <span class="grow"></span>
+    <span class="pill" data-state="ready" role="status" aria-live="polite"><i></i><b>Ready</b></span>
+  </header>
+
+  <main>
+    <section class="panel" aria-labelledby="h-src">
+      <div class="head" id="h-src">Assembly Source</div>
+      <div class="code" id="code" tabindex="0" role="region" aria-label="Assembly listing"></div>
+      <p class="note">Simulates this listing only (not a full 8086 emulator, not connected to emu8086). CS = 0700H is an
+        example value.</p>
+    </section>
+
+    <div class="right">
+      <section class="panel" aria-labelledby="h-ctl" style="flex:none">
+        <div class="head sr" id="h-ctl">Calculator</div>
+        <div class="bar">
+          <div class="field"><label for="numA">First number</label><input id="numA" type="text" inputmode="numeric"
+              maxlength="3" autocomplete="off" value="12" aria-describedby="hint errorMsg"></div>
+          <fieldset class="opset">
+            <legend>Operation</legend>
+            <div class="opwrap">
+              <div class="seg">
+                <label><input type="radio" name="op" value="add" aria-label="Add" checked><span>+</span></label>
+                <label><input type="radio" name="op" value="sub" aria-label="Subtract"><span>−</span></label>
+                <label><input type="radio" name="op" value="mul" aria-label="Multiply"><span>×</span></label>
+                <label><input type="radio" name="op" value="div" aria-label="Divide"><span>÷</span></label>
+              </div>
+              <div class="seg" title="Combines ADDM, SUBM, MULM and DIVM into one program and runs all four operations">
+                <label><input type="radio" name="op" value="all"
+                    aria-label="Calculator: all four operations in one program"><span class="calc">Calc</span></label>
+              </div>
+            </div>
+          </fieldset>
+          <div class="field"><label for="numB">Second number</label><input id="numB" type="text" inputmode="numeric"
+              maxlength="3" autocomplete="off" value="4" aria-describedby="hint errorMsg"></div>
+          <div class="btns">
+            <button id="btnRun" class="btn primary" type="button" aria-label="Run program from start to finish">▶
+              Run</button>
+            <button id="btnStep" class="btn" type="button" aria-label="Step: execute the next instruction">Step</button>
+            <button id="btnReset" class="btn" type="button" aria-label="Reset the simulation">Reset</button>
+          </div>
+        </div>
+        <p class="sr" id="hint">Whole numbers from 0 to 255 (8-bit). Calc runs ADD, SUB, MUL and DIV in one program.
+          Inputs lock while a program is part-way through; press Reset to edit.</p>
+        <p class="error" id="errorMsg" role="alert" hidden></p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-dp" style="flex:1">
+        <div class="head headrow" id="h-dp"><span>Data Flow</span><label class="spd">Speed <select id="speed">
+              <option value="1.8">Slow</option>
+              <option value="1" selected>Normal</option>
+              <option value="0.45">Fast</option>
+            </select></label></div>
+        <div class="dp" id="dp">
+          <div class="col">
+            <h3>Operands</h3>
+            <div class="r" data-anchor="m3000">
+              <div class="k"><b>3000H</b>operand 1</div>
+              <div class="vs">
+                <div class="v" id="v-m3000"></div>
+                <div class="s" id="s-m3000"></div>
+              </div>
+            </div>
+            <div class="r" data-anchor="m3001">
+              <div class="k"><b>3001H</b>operand 2</div>
+              <div class="vs">
+                <div class="v" id="v-m3001"></div>
+                <div class="s" id="s-m3001"></div>
+              </div>
+            </div>
+          </div>
+          <div class="arr" aria-hidden="true">›</div>
+          <div class="col">
+            <h3>Registers</h3>
+            <div class="reg" data-anchor="AX" title="AX accumulator: AH = high byte, AL = low byte">
+              <div class="rh"><b>AX</b><span class="rw" id="v-AX"></span></div>
+              <div class="blocks">
+                <div class="cell" data-anchor="AH"><span class="cl">AH</span><span class="cv" id="v-AH"></span></div>
+                <div class="cell" data-anchor="AL"><span class="cl">AL</span><span class="cv" id="v-AL"></span></div>
+              </div>
+            </div>
+            <div class="reg" data-anchor="BX" title="BX holds the address where the result is stored">
+              <div class="rh"><b>BX</b><span class="rw" id="v-BX"></span></div>
+              <div class="blocks">
+                <div class="cell" data-anchor="BH"><span class="cl">BH</span><span class="cv" id="v-BH"></span></div>
+                <div class="cell" data-anchor="BL"><span class="cl">BL</span><span class="cv" id="v-BL"></span></div>
+              </div>
+            </div>
+            <div class="pair">
+              <div class="reg" data-anchor="SI" title="SI points to operand 1">
+                <div class="blocks">
+                  <div class="cell"><span class="cl">SI → op 1</span><span class="cv" id="v-SI"></span></div>
+                </div>
+              </div>
+              <div class="reg" data-anchor="DI" title="DI points to operand 2">
+                <div class="blocks">
+                  <div class="cell"><span class="cl">DI → op 2</span><span class="cv" id="v-DI"></span></div>
+                </div>
+              </div>
+            </div>
+            <div class="reg segreg">
+              <div class="blocks grid2">
+                <div class="cell inl"><span class="cl">CS</span><span class="cv" id="v-CS"></span></div>
+                <div class="cell inl" data-anchor="DS"><span class="cl">DS</span><span class="cv" id="v-DS"></span>
+                </div>
+                <div class="cell inl" data-anchor="SS"><span class="cl">SS</span><span class="cv" id="v-SS"></span>
+                </div>
+                <div class="cell inl" data-anchor="SP"><span class="cl">SP</span><span class="cv" id="v-SP"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="arr" aria-hidden="true">›</div>
+          <div class="col">
+            <h3>ALU</h3>
+            <div class="alu" data-anchor="alu">
+              <div class="op" id="alu-op">idle</div>
+              <div class="ex" id="alu-ex">—</div>
+              <div class="rs" id="alu-rs"></div>
+            </div>
+          </div>
+          <div class="arr" aria-hidden="true">›</div>
+          <div class="col">
+            <h3>Result</h3>
+            <div id="resRows"></div>
+          </div>
+        </div>
+        <div class="flagbar" role="group" aria-label="Flags">
+          <h3>Flags</h3>
+          <div class="flag" id="f-ZF" data-anchor="fZF">
+            <div class="fbox"><span class="fn">ZF</span><span class="fv">0</span></div>
+            <div class="ft"><b>Zero flag</b><span class="fs"></span></div>
+          </div>
+          <div class="flag" id="f-CF" data-anchor="fCF">
+            <div class="fbox"><span class="fn">CF</span><span class="fv">0</span></div>
+            <div class="ft"><b>Carry flag</b><span class="fs"></span></div>
+          </div>
+          <div class="flag" id="f-SF" data-anchor="fSF">
+            <div class="fbox"><span class="fn">SF</span><span class="fv">0</span></div>
+            <div class="ft"><b>Sign flag</b><span class="fs"></span></div>
+          </div>
+        </div>
+        <div class="foot">
+          <div class="cap" data-anchor="cap" aria-live="polite">
+            <code id="capAsm">—</code>
+            <span id="capWhy">Press Run or Step to begin.</span>
+          </div>
+          <div class="res" data-anchor="out" aria-live="polite">
+            <div class="lbl">Output</div>
+            <div class="rval" id="rVal">—</div>
+            <div class="rlist" id="rList" hidden></div>
+            <div class="rsub" id="rSub"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="console">
+    <div class="con">
+      <strong>Console</strong>
+      <span id="last"></span>
+      <button id="conToggle" type="button" aria-expanded="false" aria-controls="log">Show log</button>
+    </div>
+    <div id="log" role="log" aria-label="Execution log" hidden></div>
+  </footer>
+
+  <div id="chips" aria-hidden="true"></div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      /* ======================================================================
+         Constants
+         ====================================================================== */
+      const OPS = {
+        add: { sym: '+', ascii: '+' }, sub: { sym: '−', ascii: '-' },
+        mul: { sym: '×', ascii: '*' }, div: { sym: '÷', ascii: '/' },
+        all: { sym: '+ − × ÷', ascii: '+ - * /' }
+      };
+      const CALC_ADDR = { add: 0x3002, sub: 0x3003, mul: 0x3004, div: 0x3006 };   // result areas in Calc mode
+      const STATUS = { ready: 'Ready', running: 'Running', completed: 'Completed', error: 'Error' };
+      const CS_VALUE = 0x0700;          // CS is assigned by emu8086; this is only an example value
+      const MOVE_MS = 1150, DWELL_MS = 350, GAP_MS = 550, IDLE_MS = 320;   // base timings; scaled by the speed control
+      let speedF = 1;
+      const T = ms => ms * speedF;
+
+      /* Macro definitions follow Lab Manual Exp. 2 (ADDM, SUBM, MULM, DIVM).
+         Each body entry has an execution type `t` that the simulator understands. */
+      const PTR = { X: { ptr: 'SI', off: 0, txt: '[SI]' }, Y: { ptr: 'DI', off: 0, txt: '[DI]' } };
+      const MACROS = {
+        add: {
+          name: 'ADDM', params: 'X, Y, RES', call: 'ADDM [SI], [DI], [BX]',
+          args: { ...PTR, RES: { ptr: 'BX', off: 0, txt: '[BX]' } },
+          body: [
+            { t: 'ldAL', text: 'MOV AL, X', arg: 'X' },
+            { t: 'addAL', text: 'ADD AL, Y', arg: 'Y', cmt: 'AL = AL + Y' },
+            { t: 'stAL', text: 'MOV RES, AL', arg: 'RES' }]
+        },
+        sub: {
+          name: 'SUBM', params: 'X, Y, RES', call: 'SUBM [SI], [DI], [BX]',
+          args: { ...PTR, RES: { ptr: 'BX', off: 0, txt: '[BX]' } },
+          body: [
+            { t: 'ldAL', text: 'MOV AL, X', arg: 'X' },
+            { t: 'subAL', text: 'SUB AL, Y', arg: 'Y', cmt: 'AL = AL - Y' },
+            { t: 'stAL', text: 'MOV RES, AL', arg: 'RES' }]
+        },
+        mul: {
+          name: 'MULM', params: 'X, Y, RES', call: 'MULM [SI], [DI], [BX]',
+          args: { ...PTR, RES: { ptr: 'BX', off: 0, txt: '[BX]' } },
+          body: [
+            { t: 'ldAL', text: 'MOV AL, X', arg: 'X' },
+            { t: 'mulB', text: 'MUL BYTE PTR Y', arg: 'Y', cmt: 'AX = AL * Y' },
+            { t: 'stAX', text: 'MOV RES, AX', arg: 'RES' }]
+        },
+        div: {
+          name: 'DIVM', params: 'X, Y, Q, R', call: 'DIVM [SI], [DI], [BX], [BX+1]',
+          args: { ...PTR, Q: { ptr: 'BX', off: 0, txt: '[BX]' }, R: { ptr: 'BX', off: 1, txt: '[BX+1]' } },
+          body: [
+            { t: 'ldAL', text: 'MOV AL, X', arg: 'X' },
+            { t: 'ldAH0', text: 'MOV AH, 00H', cmt: 'AX = dividend' },
+            { t: 'divB', text: 'DIV BYTE PTR Y', arg: 'Y', cmt: 'AL = quotient, AH = remainder' },
+            { t: 'stAL', text: 'MOV Q, AL', arg: 'Q' },
+            { t: 'stAH', text: 'MOV R, AH', arg: 'R' }]
+        }
+      };
+
+      /* ======================================================================
+         Helpers
+         ====================================================================== */
+      const $ = (s, r = document) => r.querySelector(s);
+      const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+      const sleep = ms => new Promise(res => setTimeout(res, ms));
+      const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const anchorEl = id => document.querySelector('[data-anchor="' + id + '"]');
+      const dh = (v, w = 2) => v.toString(16).toUpperCase().padStart(w, '0') + 'H';          // display: F8H
+      const lit = (v, w = 2) => { const s = v.toString(16).toUpperCase().padStart(w, '0'); return (/^[A-F]/.test(s) ? '0' : '') + s + 'H'; }; // source: 0F8H
+      const maddr = a => 'm' + a.toString(16);
+
+      /* ======================================================================
+         State
+         ====================================================================== */
+      let prog = null, cpu = null, lineEls = [];
+      let epoch = 0;                    // bumped on Reset/reload so in-flight animations stop
+      let busy = false, attemptedInvalid = false, validationText = '';
+
+      function newCpu() {
+        return {
+          regs: { AX: 0, BX: 0, SI: 0, DI: 0, DS: 0, SS: 0, SP: 0 },
+          flags: { ZF: 0, CF: 0, SF: 0 }, flagsTouched: false, undef: {}, addCF: 0,
+          mem: {},                       // byte-addressed; undefined = not written yet
+          pc: 0, executed: 0, finished: false, error: null, output: null, lastIns: null
+        };
+      }
+
+      /* ======================================================================
+         Program builder: the visible listing and the executable instruction list
+         come from the same data, so they cannot disagree.
+         ====================================================================== */
+      function buildProgram(op, a, b) {
+        const calc = op === 'all';
+        const ops = calc ? ['add', 'sub', 'mul', 'div'] : [op];
+        const lines = [], instrs = [], labels = {}, macroRanges = [], bodyOf = {};
+        const put = (label, text, cmt = '') => {
+          let s = (label ? label.padEnd(8) : '        ') + text;
+          if (cmt) s = s.padEnd(34) + '; ' + cmt;
+          lines.push(s);
+          return lines.length - 1;
+        };
+        const code = (label, text, cmt, obj) => {
+          const line = put(label, text, cmt);
+          instrs.push({ ...obj, asm: text, line });
+        };
+
+        put('', calc ? `; calculator.asm : ${a} and ${b}, all four operations (macro style, Lab Manual Exp. 2)`
+          : `; calculator.asm : ${a} ${OPS[op].ascii} ${b}   (macro style, Lab Manual Exp. 2)`);
+        ops.forEach((o, i) => {
+          const M = MACROS[o];
+          const start = put(M.name, `MACRO ${M.params}`);
+          bodyOf[o] = M.body.map(e => put('', e.text, e.cmt || ''));
+          const end = put('', 'ENDM');
+          macroRanges.push([start, end]);
+          if (i < ops.length - 1) put('', '');
+        });
+        put('', '');
+        put('', 'ORG 1000H');
+
+        code('START:', 'MOV AX, CS', 'segment set-up', { t: 'movr', dst: 'AX', src: 'CS' });
+        code('', 'MOV DS, AX', 'DS = CS', { t: 'movr', dst: 'DS', src: 'AX' });
+        code('', 'MOV SS, AX', 'SS = CS', { t: 'movr', dst: 'SS', src: 'AX' });
+        code('', 'MOV SP, 2000H', 'stack top', { t: 'movi', dst: 'SP', imm: 0x2000 });
+        code('', 'MOV SI, 3000H', 'SI -> operand 1', { t: 'movi', dst: 'SI', imm: 0x3000 });
+        code('', 'MOV DI, 3001H', 'DI -> operand 2', { t: 'movi', dst: 'DI', imm: 0x3001 });
+        code('', 'MOV BX, 3002H', 'BX -> result area', { t: 'movi', dst: 'BX', imm: 0x3002 });
+        code('', `MOV BYTE PTR [SI], ${lit(a)}`, 'store operand 1', { t: 'stm', ptr: 'SI', off: 0, imm: a });
+        code('', `MOV BYTE PTR [DI], ${lit(b)}`, 'store operand 2', { t: 'stm', ptr: 'DI', off: 0, imm: b });
+
+        const guard = () => {     // guard added by this project: the manual's DIVM does not test the divisor
+          code('', 'CMP BYTE PTR [DI], 00H', 'divisor zero?', { t: 'cmp', ptr: 'DI', off: 0 });
+          code('', 'JE DIV_ZERO', calc ? 'skip DIVM if divisor = 0' : '', { t: 'je', target: 'DIV_ZERO' });
+        };
+        if (op === 'div') guard();
+
+        ops.forEach(o => {
+          const M = MACROS[o];
+          if (calc && o !== 'add') {
+            const ad = CALC_ADDR[o].toString(16).toUpperCase() + 'H';
+            code('', `MOV BX, ${ad}`, `BX -> ${M.name} result area`, { t: 'movi', dst: 'BX', imm: CALC_ADDR[o] });
+          }
+          if (calc && o === 'div') guard();
+          const callLine = put('', M.call, calc ? `${M.name} expands here` : 'macro expands here');
+          M.body.forEach((e, i) => {
+            const asm = e.text.replace(/\b(X|Y|RES|Q|R)\b/g, k => M.args[k].txt);
+            instrs.push({
+              t: e.t, ptr: e.arg ? M.args[e.arg].ptr : null, off: e.arg ? M.args[e.arg].off : 0,
+              asm, line: bodyOf[o][i], invoke: callLine, inMacro: true
+            });
+          });
+        });
+
+        if (calc) {
+          put('DIV_ZERO:', '');
+          labels.DIV_ZERO = instrs.length;
+          code('', 'HLT', 'stop execution', { t: 'hlt' });
+        } else {
+          code('', 'HLT', 'stop execution', { t: 'hlt' });
+          if (op === 'div') {
+            put('DIV_ZERO:', '');
+            labels.DIV_ZERO = instrs.length;
+            code('', 'HLT', 'error: nothing stored', { t: 'hltErr' });
+          }
+        }
+        put('', 'END');
+
+        return {
+          op, a, b, lines, instrs, labels, macroRanges,
+          names: new Set(['START', 'DIV_ZERO']), macroNames: new Set(ops.map(o => MACROS[o].name))
+        };
+      }
+
+      /* ======================================================================
+         Syntax highlighting (display only)
+         ====================================================================== */
+      const INSTR = new Set('mov add sub mul div cmp je hlt'.split(' '));
+      const REGS = new Set('ax bx cx dx ah al si di sp cs ds ss'.split(' '));
+      const KEYW = new Set('macro endm org end byte ptr'.split(' '));
+      const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      function highlight(line) {
+        const i = line.indexOf(';');
+        const codePart = i < 0 ? line : line.slice(0, i);
+        const cmt = i < 0 ? '' : line.slice(i);
+        let out = esc(codePart).replace(/(\b[0-9][0-9A-Fa-f]*[Hh]\b)|(\b\d+\b)|(\b[A-Za-z_]\w*\b)/g, (m, hx, dc, wd) => {
+          if (hx || dc) return `<span class="t-num">${m}</span>`;
+          const w = wd.toLowerCase(), up = wd.toUpperCase();
+          if (INSTR.has(w)) return `<span class="t-ins">${m}</span>`;
+          if (REGS.has(w)) return `<span class="t-reg">${m}</span>`;
+          if (KEYW.has(w)) return `<span class="t-key">${m}</span>`;
+          if (prog.macroNames.has(up)) return `<span class="t-macro">${m}</span>`;
+          if (prog.names.has(up)) return `<span class="t-label">${m}</span>`;
+          return `<span class="t-var">${m}</span>`;
+        });
+        if (cmt) out += `<span class="t-cmt">${esc(cmt)}</span>`;
+        return out || '&nbsp;';
+      }
+
+      /* ======================================================================
+         Instruction semantics (8-bit operations, as in Lab Manual Exp. 2).
+         computeEffect() describes one instruction: animation phases, ALU text,
+         the state change (applied by commit() after the animation) and log text.
+         ====================================================================== */
+      const addrOf = (p) => cpu.regs[p.ptr] + p.off;
+      const hotReg = r => r;
+
+      function computeEffect(ins) {
+        const R = cpu.regs, endPc = prog.instrs.length;
+        const fx = {
+          phases: [{ chips: [], hot: [] }], alu: null, explain: '', log: '', cls: '',
+          commit() { }, nextPc: cpu.pc + 1, finish: false
+        };
+
+        switch (ins.t) {
+          case 'movr': {
+            const v = ins.src === 'CS' ? CS_VALUE : R[ins.src];
+            fx.phases = [{ chips: [], hot: [hotReg(ins.dst)] }];
+            fx.commit = () => { R[ins.dst] = v; };
+            fx.log = `${ins.dst} ← ${ins.src} = ${dh(v, 4)}`;
+            fx.explain = ins.src === 'CS' ? 'Copies CS into AX (segment registers cannot be loaded directly with a constant).'
+              : `Copies AX into ${ins.dst}, so ${ins.dst} = CS.`;
+            break;
+          }
+          case 'movi': {
+            fx.phases = [{ chips: [], hot: [hotReg(ins.dst)] }];
+            fx.commit = () => { R[ins.dst] = ins.imm; };
+            fx.log = `${ins.dst} ← ${dh(ins.imm, 4)}`;
+            fx.explain = ins.dst === 'SP' ? 'Initialises the stack pointer to 2000H.'
+              : `Loads the address ${dh(ins.imm, 4)} into ${ins.dst} so it can be used as a memory pointer.`;
+            break;
+          }
+          case 'stm': {                                   // MOV BYTE PTR [reg], imm
+            const ad = addrOf(ins);
+            fx.phases = [{ chips: [{ from: 'cap', to: maddr(ad), label: String(ins.imm) }], hot: [maddr(ad)] }];
+            fx.commit = () => { cpu.mem[ad] = ins.imm; };
+            fx.log = `[${dh(ad, 4)}] ← ${dh(ins.imm)} (${ins.imm})`;
+            fx.explain = `Writes the constant ${ins.imm} (${dh(ins.imm)}) into memory at ${dh(ad, 4)}.`;
+            break;
+          }
+          case 'ldAL': {
+            const ad = addrOf(ins), v = cpu.mem[ad];
+            fx.phases = [{ chips: [{ from: maddr(ad), to: 'AL', label: String(v) }], hot: [maddr(ad), 'AL'] }];
+            fx.commit = () => { R.AX = (R.AX & 0xFF00) | v; };
+            fx.log = `AL ← [${dh(ad, 4)}] = ${dh(v)} (${v})`;
+            fx.explain = `Loads the byte at ${dh(ad, 4)} into AL (the low half of AX).`;
+            break;
+          }
+          case 'ldAH0': {
+            fx.phases = [{ chips: [], hot: ['AH'] }];
+            fx.commit = () => { R.AX = R.AX & 0x00FF; };
+            fx.log = 'AH ← 00H, AX now holds the dividend';
+            fx.explain = 'Clears AH so AX equals the 8-bit dividend before DIV.';
+            break;
+          }
+          case 'addAL': case 'subAL': {
+            const isAdd = ins.t === 'addAL', ad = addrOf(ins);
+            const al = R.AX & 0xFF, b = cpu.mem[ad];
+            const full = isAdd ? al + b : al - b, r = full & 0xFF;
+            const flags = { ZF: r === 0 ? 1 : 0, SF: r >> 7, CF: isAdd ? (full > 255 ? 1 : 0) : (al < b ? 1 : 0) };
+            const sym = isAdd ? '+' : '−';
+            const extra = flags.CF ? (isAdd ? ` → carry out, true sum ${full}` : ` → ${r - 256} with borrow`) : '';
+            fx.phases = [
+              {
+                hot: ['AL', maddr(ad), 'alu'], chips: [
+                  { from: 'AL', to: 'alu', label: String(al), oy: -10 },
+                  { from: maddr(ad), to: 'alu', label: String(b), oy: 10 }]
+              },
+              { hot: ['alu', 'AL'], chips: [{ from: 'alu', to: 'AL', label: String(r) }] }];
+            fx.alu = { op: ins.asm, expr: `${al} ${sym} ${b}`, result: `= ${r}${extra}` };
+            fx.commit = () => { R.AX = (R.AX & 0xFF00) | r; cpu.flags = flags; cpu.undef = {}; if (isAdd) cpu.addCF = flags.CF; };
+            fx.log = `AL = ${al} ${sym} ${b} = ${dh(r)}${extra} · CF=${flags.CF} ZF=${flags.ZF} SF=${flags.SF}`;
+            fx.explain = isAdd ? 'The ALU adds the memory byte to AL and stores the sum back in AL. If the sum exceeds 255, only the low 8 bits stay in AL and CF=1.'
+              : 'The ALU subtracts the memory byte from AL. If the answer is negative, AL holds it in two\'s complement and CF=1 (borrow).';
+            break;
+          }
+          case 'mulB': {
+            const ad = addrOf(ins), al = R.AX & 0xFF, b = cpu.mem[ad], p = al * b;
+            fx.phases = [
+              {
+                hot: ['AL', maddr(ad), 'alu'], chips: [
+                  { from: 'AL', to: 'alu', label: String(al), oy: -10 },
+                  { from: maddr(ad), to: 'alu', label: String(b), oy: 10 }]
+              },
+              { hot: ['alu', 'AX'], chips: [{ from: 'alu', to: 'AX', label: String(p) }] }];
+            fx.alu = { op: ins.asm, expr: `${al} × ${b}`, result: `= ${p}` };
+            fx.commit = () => { R.AX = p; cpu.flags = { ...cpu.flags, CF: (p >> 8) ? 1 : 0 }; cpu.undef = { ZF: 'MUL', SF: 'MUL' }; };
+            fx.log = `AX = AL × ${b} = ${al} × ${b} = ${p} (${dh(p, 4)}) · CF=${(p >> 8) ? 1 : 0}`;
+            fx.explain = 'MUL with a byte operand multiplies AL by it. The 16-bit product is placed in AX.';
+            break;
+          }
+          case 'divB': {
+            const ad = addrOf(ins), dividend = R.AX, d = cpu.mem[ad];
+            const q = d ? Math.floor(dividend / d) : 0, rem = d ? dividend % d : 0;
+            if (d === 0 || q > 255) {                     // real CPU would raise INT 0; the program guards against it
+              fx.phases = [{ hot: ['alu'], chips: [] }];
+              fx.alu = { op: ins.asm, expr: `${dividend} ÷ ${d}`, result: 'divide error' };
+              fx.commit = () => { cpu.error = 'CPU divide error: the quotient does not fit in AL.'; cpu.output = { error: true }; };
+              fx.finish = true; fx.nextPc = endPc; fx.cls = 'err';
+              fx.log = 'CPU divide error'; fx.explain = 'The processor stops with a divide exception.';
+              break;
+            }
+            fx.phases = [
+              {
+                hot: ['AX', maddr(ad), 'alu'], chips: [
+                  { from: 'AX', to: 'alu', label: String(dividend), oy: -10 },
+                  { from: maddr(ad), to: 'alu', label: String(d), oy: 10 }]
+              },
+              {
+                hot: ['alu', 'AL', 'AH'], chips: [
+                  { from: 'alu', to: 'AL', label: 'Q ' + q },
+                  { from: 'alu', to: 'AH', label: 'R ' + rem, delay: 180 }]
+              }];
+            fx.alu = { op: ins.asm, expr: `${dividend} ÷ ${d}`, result: `= ${q} R ${rem}` };
+            fx.commit = () => { R.AX = (rem << 8) | q; cpu.undef = { ZF: 'DIV', CF: 'DIV', SF: 'DIV' }; };
+            fx.log = `AX ÷ ${d} → AL = ${q} (quotient), AH = ${rem} (remainder)`;
+            fx.explain = 'DIV with a byte operand divides AX by it. The quotient goes to AL and the remainder to AH.';
+            break;
+          }
+          case 'stAL': case 'stAH': case 'stAX': {
+            const ad = addrOf(ins), lo = R.AX & 0xFF, hi = R.AX >> 8;
+            if (ins.t === 'stAX') {
+              fx.phases = [{
+                hot: ['AL', 'AH', maddr(ad), maddr(ad + 1)], chips: [
+                  { from: 'AL', to: maddr(ad), label: String(lo) },
+                  { from: 'AH', to: maddr(ad + 1), label: String(hi), delay: 180 }]
+              }];
+              fx.commit = () => { cpu.mem[ad] = lo; cpu.mem[ad + 1] = hi; };
+              fx.log = `[${dh(ad, 4)}] ← ${dh(lo)}, [${dh(ad + 1, 4)}] ← ${dh(hi)} (word ${dh(R.AX, 4)}, low byte first)`;
+              fx.explain = 'Stores the 16-bit product at two addresses. The 8086 keeps the low byte first (little-endian).';
+            } else {
+              const v = ins.t === 'stAL' ? lo : hi, nm = ins.t === 'stAL' ? 'AL' : 'AH';
+              fx.phases = [{ hot: [nm, maddr(ad)], chips: [{ from: nm, to: maddr(ad), label: String(v) }] }];
+              fx.commit = () => { cpu.mem[ad] = v; };
+              fx.log = `[${dh(ad, 4)}] ← ${nm} = ${dh(v)} (${v})`;
+              fx.explain = `Copies ${nm} into memory at ${dh(ad, 4)}.`;
+            }
+            break;
+          }
+          case 'cmp': {
+            const ad = addrOf(ins), b = cpu.mem[ad];
+            const flags = { ZF: b === 0 ? 1 : 0, SF: b >> 7, CF: 0 };
+            fx.phases = [{ hot: [maddr(ad), 'alu'], chips: [{ from: maddr(ad), to: 'alu', label: String(b) }] }];
+            fx.alu = { op: ins.asm, expr: `${b} − 0`, result: `flags only · ZF=${flags.ZF}` };
+            fx.commit = () => { cpu.flags = flags; cpu.undef = {}; };
+            fx.log = `${b} − 0, answer discarded → ZF=${flags.ZF}`;
+            fx.explain = 'CMP subtracts without storing the answer; only the flags change. ZF=1 means the divisor is zero.';
+            break;
+          }
+          case 'je': {
+            const taken = cpu.flags.ZF === 1;
+            fx.nextPc = taken ? prog.labels[ins.target] : cpu.pc + 1;
+            fx.phases = [{ hot: ['alu'], chips: [] }];
+            fx.alu = { op: ins.asm, expr: `ZF = ${cpu.flags.ZF}`, result: taken ? 'jump taken' : 'not taken' };
+            fx.log = taken ? `ZF=1 → jump to ${ins.target}` : 'ZF=0 → not taken, continue';
+            fx.explain = `JE jumps only if ZF=1. Here ZF=${cpu.flags.ZF}, so the jump is ${taken ? 'taken (divisor is 0)' : 'not taken'}.`;
+            break;
+          }
+          case 'hlt': {
+            if (prog.op === 'all') {                      // Calc mode: collect the four results
+              const M = cpu.mem, A = prog.a, B = prog.b;
+              const sum = M[0x3002] + (cpu.addCF ? 256 : 0), dif = A < B ? M[0x3003] - 256 : M[0x3003];
+              const prod = M[0x3004] | (M[0x3005] << 8), skipped = M[0x3006] === undefined;
+              const items = [
+                { expr: `${A} + ${B}`, text: String(sum), ok: sum === A + B },
+                { expr: `${A} − ${B}`, text: String(dif), ok: dif === A - B },
+                { expr: `${A} × ${B}`, text: String(prod), ok: prod === A * B }];
+              if (skipped) items.push({ expr: `${A} ÷ ${B}`, text: 'error', ok: false, err: true });
+              else items.push({
+                expr: `${A} ÷ ${B}`, text: `${M[0x3006]} R ${M[0x3007]}`,
+                ok: M[0x3006] === Math.floor(A / B) && M[0x3007] === A % B
+              });
+              const allOk = items.every(i => i.ok || i.err);
+              const chips = [{ from: 'm3002', to: 'out', label: String(sum) },
+              { from: 'm3003', to: 'out', label: String(dif), delay: 200 },
+              { from: 'm3004', to: 'out', label: String(prod), delay: 400 }];
+              const hot = ['m3002', 'm3003', 'm3004', 'out'];
+              if (!skipped) { chips.push({ from: 'm3006', to: 'out', label: 'Q ' + M[0x3006], delay: 600 }); hot.push('m3006'); }
+              fx.phases = [{ hot, chips }];
+              fx.commit = () => {
+                cpu.output = { error: false, calc: true, items, ok: allOk, skipped };
+                if (skipped) cpu.error = 'Division by zero: the second number is 0, so DIVM was skipped. ADD, SUB and MUL results are still valid.';
+              };
+              fx.finish = true; fx.nextPc = endPc; fx.cls = skipped ? 'err' : 'ok';
+              fx.log = 'HLT · ' + items.map(i => `${i.expr} = ${i.text}`).join(' · ') + (skipped ? ' (DIV skipped)' : allOk ? ' (verified)' : ' (MISMATCH)');
+              fx.explain = skipped ? 'HLT stops the processor. DIVM was skipped because the divisor is 0; the other three results are shown.'
+                : 'HLT stops the processor. The simulator reads all result bytes from memory and shows the four answers.';
+              break;
+            }
+            const m2 = cpu.mem[0x3002], m3 = cpu.mem[0x3003], op = prog.op;
+            let q, r = null, text;
+            if (op === 'sub') q = prog.a < prog.b ? m2 - 256 : m2;
+            else if (op === 'mul') q = m2 | (m3 << 8);
+            else q = m2 + (op === 'add' && cpu.addCF ? 256 : 0);
+            if (op === 'div') { r = m3; text = `${q} R ${r}`; } else text = String(q);
+            const exp = op === 'add' ? prog.a + prog.b : op === 'sub' ? prog.a - prog.b
+              : op === 'mul' ? prog.a * prog.b : Math.floor(prog.a / prog.b);
+            const ok = q === exp && (op !== 'div' || r === prog.a % prog.b);
+            const chips = [{ from: 'm3002', to: 'out', label: String(q) }];
+            if (op === 'mul' || op === 'div') chips.push({ from: 'm3003', to: 'out', label: op === 'div' ? 'R ' + r : 'hi ' + m3, delay: 120 });
+            fx.phases = [{ hot: ['m3002', ...(chips.length > 1 ? ['m3003'] : []), 'out'], chips }];
+            fx.commit = () => { cpu.output = { error: false, text, q, r, ok }; };
+            fx.finish = true; fx.nextPc = endPc; fx.cls = 'ok';
+            fx.log = `HLT · result = ${text}${ok ? ' (verified)' : ' (MISMATCH)'}`;
+            fx.explain = 'HLT stops the processor. The simulator reads the result bytes from memory and shows them as the output.';
+            break;
+          }
+          case 'hltErr': {
+            fx.phases = [{ hot: ['out'], chips: [] }];
+            fx.commit = () => {
+              cpu.error = 'Division by zero: the second number is 0, so DIV was skipped and no result was stored.';
+              cpu.output = { error: true };
+            };
+            fx.finish = true; fx.nextPc = endPc; fx.cls = 'err';
+            fx.log = 'ERROR: divide by zero · DIV skipped, no result stored';
+            fx.explain = 'JE jumped here because the divisor is 0, so the division was never executed.';
+            break;
+          }
+        }
+        return fx;
+      }
+
+      /* ======================================================================
+         Animation helpers
+         ====================================================================== */
+      const clearChips = () => { $('#chips').innerHTML = ''; };
+      const clearHot = () => $$('.hot').forEach(el => el.classList.remove('hot'));
+
+      function flyChip(c) {
+        const f = anchorEl(c.from), t = anchorEl(c.to);
+        if (!f || !t) return Promise.resolve();
+        const fr = f.getBoundingClientRect(), tr = t.getBoundingClientRect(), oy = c.oy || 0;
+        const x1 = fr.left + fr.width / 2, y1 = fr.top + fr.height / 2 + (c.from === 'alu' ? oy : 0);
+        const x2 = tr.left + tr.width / 2, y2 = tr.top + tr.height / 2 + (c.to === 'alu' ? oy : 0);
+        const host = $('#chips');
+        const el = document.createElement('div');
+        el.className = 'chip'; el.textContent = c.label;
+        host.appendChild(el);
+
+        // gentle upward arc: quadratic Bézier with a sine ease, so the chip glides rather than slides
+        const dx = x2 - x1, dy = y2 - y1, dist = Math.hypot(dx, dy) || 1;
+        let nx = -dy / dist, ny = dx / dist; if (ny > 0) { nx = -nx; ny = -ny; }
+        const bow = Math.min(36, dist * 0.14);
+        const cx = (x1 + x2) / 2 + nx * bow, cy = (y1 + y2) / 2 + ny * bow;
+        const dur = T(MOVE_MS), t0 = performance.now() + T(c.delay || 0);
+        let lastTrail = 0;
+
+        return new Promise(done => {
+          const frame = now => {
+            if (!el.isConnected) { done(); return; }                       // Reset clears the chips
+            const p = Math.min(1, Math.max(0, (now - t0) / dur));
+            const e = -(Math.cos(Math.PI * p) - 1) / 2;                    // ease-in-out (sine)
+            const x = (1 - e) * (1 - e) * x1 + 2 * (1 - e) * e * cx + e * e * x2;
+            const y = (1 - e) * (1 - e) * y1 + 2 * (1 - e) * e * cy + e * e * y2;
+            const o = Math.max(0, Math.min(1, p / 0.14, (1 - p) / 0.12));  // fade in, fade out on arrival
+            el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${0.86 + 0.14 * o})`;
+            el.style.opacity = o;
+            if (p > 0.04 && p < 0.92 && now - lastTrail > 90) {
+              lastTrail = now;
+              const d = document.createElement('span');
+              d.className = 'trail'; d.style.left = x + 'px'; d.style.top = y + 'px';
+              d.addEventListener('animationend', () => d.remove());
+              host.appendChild(d);
+            }
+            if (p >= 1) { el.remove(); done(); return; }
+            requestAnimationFrame(frame);
+          };
+          requestAnimationFrame(frame);
+        });
+      }
+
+      async function runPhase(ph) {
+        clearHot();
+        (ph.hot || []).forEach(a => { const el = anchorEl(a); if (el) el.classList.add('hot'); });
+        if (!ph.chips.length || reduceMotion()) { await sleep(reduceMotion() ? 260 : T(IDLE_MS)); return; }
+        await Promise.all(ph.chips.map(flyChip));
+      }
+
+      function flash(keys) {
+        keys.forEach(k => {
+          const el = anchorEl(k); if (!el) return;
+          el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1200);
+        });
+      }
+
+      /* ======================================================================
+         Executing one instruction: highlight → animate → commit state → render
+         ====================================================================== */
+      async function performStep(my) {
+        const ins = prog.instrs[cpu.pc];
+        if (!ins) return false;
+        const fx = computeEffect(ins);
+
+        cpu.lastIns = ins;
+        renderSourceMarks();
+        $('#capAsm').textContent = ins.asm;
+        $('#capWhy').textContent = fx.explain; $('#capWhy').title = fx.explain;
+        if (fx.alu) showAlu(fx.alu.op, fx.alu.expr, '…');
+        renderStatus();
+
+        await sleep(reduceMotion() ? 150 : T(DWELL_MS));
+        if (my !== epoch) return false;
+
+        for (let i = 0; i < fx.phases.length; i++) {
+          await runPhase(fx.phases[i]);
+          if (my !== epoch) return false;
+          if (i === 0 && fx.alu) $('#alu-rs').textContent = fx.alu.result;
+        }
+
+        const snap = () => ({ ...cpu.regs, ...cpu.mem });
+        const before = snap(), flagsBefore = { ...cpu.flags };
+        fx.commit();
+        cpu.executed++; cpu.pc = fx.nextPc;
+        if (fx.finish) cpu.finished = true;
+        const after = snap();
+
+        if (['addAL', 'subAL', 'mulB', 'divB', 'cmp'].includes(ins.t)) cpu.flagsTouched = true;
+        const touched = new Set();
+        Object.keys(after).forEach(k => {
+          if (after[k] === before[k]) return;
+          if (/^\d+$/.test(k)) touched.add(maddr(+k));
+          else if (k === 'AX' || k === 'BX') {                 // flash only the half that changed
+            if ((after[k] >> 8) !== ((before[k] || 0) >> 8)) touched.add(k[0] + 'H');
+            if ((after[k] & 255) !== ((before[k] || 0) & 255)) touched.add(k[0] + 'L');
+          } else touched.add(hotReg(k));
+        });
+        ['ZF', 'CF', 'SF'].forEach(f => { if (cpu.flags[f] !== flagsBefore[f]) touched.add('f' + f); });
+        clearHot();
+        renderAll();
+        flash([...touched]);
+        log('#' + String(cpu.executed).padStart(2, '0'), ins.asm, fx.log, fx.cls);
+        return true;
+      }
+
+      /* ======================================================================
+         Controls: Run / Step / Reset
+         ====================================================================== */
+      async function runProgram() {
+        if (busy) return;
+        if (!checkInputs(true)) return;
+        if (cpu.finished) loadProgram();
+        const my = epoch;
+        busy = true; renderControls(); renderStatus();
+        while (my === epoch && !cpu.finished) {
+          const ok = await performStep(my);
+          if (!ok || my !== epoch) return;
+          if (!cpu.finished) await sleep(reduceMotion() ? 320 : T(GAP_MS));
+        }
+        if (my === epoch) { busy = false; renderAll(); }
+      }
+
+      async function stepOnce() {
+        if (busy || cpu.finished) return;
+        if (cpu.executed === 0 && !checkInputs(true)) return;
+        const my = epoch;
+        busy = true; renderControls(); renderStatus();
+        const ok = await performStep(my);
+        if (ok && my === epoch) { busy = false; renderAll(); }
+      }
+
+      function loadProgram() {
+        epoch++; busy = false; attemptedInvalid = false;
+        clearChips(); clearHot();
+        const res = readInputs();
+        renderValidation(res);
+        if (res.ok || !prog) prog = buildProgram(res.ok ? res.op : 'add', res.ok ? res.a : 12, res.ok ? res.b : 4);
+        cpu = newCpu();
+        renderSource();
+        setRowLabels();
+        showAlu('idle', '—', '');
+        $('#capAsm').textContent = '—';
+        $('#capWhy').textContent = 'Press Run or Step to begin.';
+        $('#log').innerHTML = '';
+        $('#last').textContent = ''; $('#last').className = '';
+        renderAll();
+        $('#code').scrollTop = 0; $('#code')._goal = 0;
+        if (res.ok) log('sys', '', `Ready: ${prog.op === 'all' ? prog.a + ' and ' + prog.b + ', all four operations (ADD, SUB, MUL, DIV)' : prog.a + ' ' + OPS[prog.op].sym + ' ' + prog.b}. Press Run or Step.`);
+        else log('sys', '', 'Ready. Fix the input values to run a program.', 'err');
+      }
+
+      /* ======================================================================
+         Validation
+         ====================================================================== */
+      function parseOperand(raw, label) {
+        const t = raw.trim();
+        if (t === '') return { err: `${label}: enter a whole number from 0 to 255.` };
+        if (!/^\d{1,3}$/.test(t) || parseInt(t, 10) > 255) return { err: `${label}: "${t}" is not a whole number from 0 to 255 (8-bit).` };
+        return { v: parseInt(t, 10) };
+      }
+      function readInputs() {
+        const A = parseOperand($('#numA').value, 'First number');
+        const B = parseOperand($('#numB').value, 'Second number');
+        const errs = [A.err, B.err].filter(Boolean);
+        return { ok: !errs.length, a: A.v, b: B.v, op: $('input[name=op]:checked').value, errA: A.err, errB: B.err, text: errs.join(' ') };
+      }
+      function renderValidation(res) {
+        $('#numA').setAttribute('aria-invalid', String(!!res.errA));
+        $('#numB').setAttribute('aria-invalid', String(!!res.errB));
+        validationText = res.text;
+        if (cpu) renderError();
+      }
+      function checkInputs(attempt) {
+        const res = readInputs();
+        renderValidation(res);
+        if (res.ok) { attemptedInvalid = false; return true; }
+        if (attempt) {
+          attemptedInvalid = true; renderStatus();
+          log('sys', '', 'Cannot run: ' + res.text, 'err');
+          (res.errA ? $('#numA') : $('#numB')).focus();
+        }
+        return false;
+      }
+      function onInputsChange() {
+        const res = readInputs();
+        renderValidation(res);
+        if (res.ok) loadProgram(); else { attemptedInvalid = false; renderStatus(); }
+      }
+
+      /* ======================================================================
+         Rendering
+         ====================================================================== */
+      function renderSource() {
+        const box = $('#code'); box.innerHTML = '';
+        prog.lines.forEach((text, i) => {
+          const row = document.createElement('div');
+          row.className = 'ln' + (prog.macroRanges.some(([a, b]) => i >= a && i <= b) ? ' macro' : '');
+          row.innerHTML = `<span class="no">${i + 1}</span><code>${highlight(text)}</code>`;
+          box.appendChild(row);
+        });
+        lineEls = [...box.children];
+      }
+
+      function keepVisible(el) {
+        // el.offsetTop is measured from the page, not from the scroll box, so use bounding rects instead
+        const box = $('#code'), br = box.getBoundingClientRect(), er = el.getBoundingClientRect();
+        const top = er.top - br.top + box.scrollTop, h = er.height;
+        const goal = box._goal ?? box.scrollTop;                 // where an earlier smooth scroll is heading
+        const band = box.clientHeight * 0.25;                    // keep the line inside the middle half
+        if (top >= goal + band && top + h <= goal + box.clientHeight - band) return;
+        const max = box.scrollHeight - box.clientHeight;
+        const target = Math.max(0, Math.min(max, top - box.clientHeight / 2 + h / 2));
+        box._goal = target;
+        const offNow = top < box.scrollTop || top + h > box.scrollTop + box.clientHeight;
+        const far = offNow || Math.abs(target - box.scrollTop) > box.clientHeight * 0.35;   // big jumps are instant so the line never lags behind
+        box.scrollTo({ top: target, behavior: (reduceMotion() || far) ? 'auto' : 'smooth' });
+      }
+
+      function renderSourceMarks() {
+        const box = $('#code');
+        lineEls.forEach(el => { el.classList.remove('exec', 'invoke', 'next'); el.removeAttribute('aria-current'); });
+        box.classList.toggle('done', cpu.finished && !cpu.error);
+        box.classList.toggle('fail', !!cpu.error);
+        const cur = cpu.lastIns;
+        if (cur) {
+          lineEls[cur.line].classList.add('exec');
+          lineEls[cur.line].setAttribute('aria-current', 'step');
+          if (cur.invoke !== undefined) lineEls[cur.invoke].classList.add('invoke');
+        }
+        const nx = !cpu.finished && prog.instrs[cpu.pc];
+        if (nx && (!cur || nx.line !== cur.line)) lineEls[nx.line].classList.add('next');
+        const f = cur ? lineEls[cur.line] : (nx ? lineEls[nx.line] : null);
+        if (f) keepVisible(f);
+      }
+
+      function showAlu(op, ex, rs) {
+        $('#alu-op').textContent = op; $('#alu-ex').textContent = ex; $('#alu-rs').textContent = rs;
+      }
+
+      const ROW_LABELS = {
+        add: ['result'], sub: ['result'],
+        mul: ['product (low)', 'product (high)'], div: ['quotient', 'remainder'],
+        all: ['sum', 'difference', 'product (low)', 'product (high)', 'quotient', 'remainder']
+      };
+      function setRowLabels() {
+        const L = ROW_LABELS[prog.op];
+        for (let i = 0; i < 6; i++) {
+          const id = maddr(0x3002 + i);
+          $('#row-' + id).hidden = i >= L.length;
+          $('#k-' + id).textContent = L[i] || '';
+        }
+      }
+
+      const FLAG_INFO = {
+        ZF: { on: 'Result is zero', off: 'Result not zero' },
+        CF: { on: 'Carry / borrow', off: 'No carry / borrow' },
+        SF: { on: 'Bit 7 = 1 (negative if signed)', off: 'Bit 7 = 0' }
+      };
+
+      function renderMachine() {
+        const R = cpu.regs, set = (id, t) => { $('#v-' + id).textContent = t; };
+        set('AX', dh(R.AX, 4)); set('AH', dh(R.AX >> 8)); set('AL', dh(R.AX & 255));
+        set('BX', dh(R.BX, 4)); set('BH', dh(R.BX >> 8)); set('BL', dh(R.BX & 255));
+        set('SI', dh(R.SI, 4)); set('DI', dh(R.DI, 4));
+        set('CS', dh(CS_VALUE, 4)); set('DS', dh(R.DS, 4)); set('SS', dh(R.SS, 4)); set('SP', dh(R.SP, 4));
+        const signedAddr = prog.op === 'sub' ? 0x3002 : prog.op === 'all' ? 0x3003 : -1;
+        for (let ad = 0x3000; ad <= 0x3007; ad++) {
+          const v = cpu.mem[ad], id = maddr(ad);
+          $('#v-' + id).textContent = v === undefined ? '--' : dh(v);
+          let sub = v === undefined ? '' : `= ${v}`;
+          if (v !== undefined && ad === signedAddr && prog.a < prog.b && cpu.finished) sub = `= ${v} → ${v - 256} (borrow)`;
+          if (v !== undefined && ad === 0x3002 && cpu.addCF && cpu.finished && (prog.op === 'add' || prog.op === 'all')) sub = `= ${v} + carry → ${v + 256}`;
+          $('#s-' + id).textContent = sub;
+        }
+        ['ZF', 'CF', 'SF'].forEach(f => {
+          const el = $('#f-' + f), on = cpu.flags[f] === 1;
+          el.classList.toggle('on', on);
+          $('.fv', el).textContent = cpu.flags[f];
+          $('.fs', el).textContent = !cpu.flagsTouched ? 'not set yet' : cpu.undef[f] ? 'undefined after ' + cpu.undef[f] : FLAG_INFO[f][on ? 'on' : 'off'];
+        });
+      }
+
+      function renderResult() {
+        const o = cpu.output, v = $('#rVal'), s = $('#rSub'), list = $('#rList');
+        v.className = 'rval'; v.hidden = false; list.hidden = true; list.innerHTML = ''; $('.res .lbl').textContent = 'Output';
+        if (!o) { v.textContent = '—'; s.textContent = ''; return; }
+        if (o.calc) {
+          v.hidden = true; list.hidden = false;
+          list.innerHTML = o.items.map(i => `<div class="${i.err ? 'err' : ''}">${i.expr} = <b>${i.text}</b></div>`).join('');
+          s.textContent = '';
+          $('.res .lbl').textContent = 'Output ' + (o.skipped ? '· ÷ skipped' : o.ok ? '· verified ✓' : '· ✗ mismatch');
+          return;
+        }
+        if (o.error) { v.textContent = 'Error'; v.classList.add('err'); s.textContent = (cpu.error || '').split(':')[0]; return; }
+        v.textContent = o.text; v.classList.add('ok');
+        s.textContent = prog.op === 'div' ? `${prog.a} ÷ ${prog.b}, quotient R remainder` : `${prog.a} ${OPS[prog.op].sym} ${prog.b}`;
+        s.textContent += o.ok ? ' ✓' : ' ✗ mismatch';
+      }
+
+      function currentStatus() {
+        if (cpu.error || attemptedInvalid) return 'error';
+        if (cpu.finished) return 'completed';
+        if (busy || cpu.executed > 0) return 'running';
+        return 'ready';
+      }
+      function renderStatus() {
+        const s = currentStatus();
+        $$('.pill').forEach(p => { p.dataset.state = s; $('b', p).textContent = STATUS[s]; });
+      }
+      function renderError() {
+        const t = validationText || cpu.error || '', el = $('#errorMsg');
+        el.hidden = !t; el.textContent = t; el.title = t;
+      }
+      function renderControls() {
+        const locked = busy || (cpu.executed > 0 && !cpu.finished);
+        ['#numA', '#numB'].forEach(s => { $(s).disabled = locked; });
+        $$('input[name=op]').forEach(r => { r.disabled = locked; });
+        // aria-disabled keeps keyboard focus on the buttons
+        $('#btnRun').setAttribute('aria-disabled', String(busy));
+        $('#btnStep').setAttribute('aria-disabled', String(busy || cpu.finished));
+      }
+      function renderAll() {
+        renderMachine(); renderResult(); renderStatus(); renderControls(); renderError(); renderSourceMarks();
+      }
+
+      /* ======================================================================
+         Console (one line, with an optional full log)
+         ====================================================================== */
+      function log(tag, ins, msg, cls = '') {
+        const box = $('#log'), row = document.createElement('div');
+        row.className = cls;
+        row.textContent = `${tag}  ${ins ? ins.padEnd(26) : ''}${msg}`;
+        box.appendChild(row);
+        while (box.children.length > 80) box.firstChild.remove();
+        box.scrollTop = box.scrollHeight;
+        const last = $('#last');
+        last.textContent = (ins ? ins + '  ·  ' : '') + msg;
+        last.className = cls === 'err' ? 'err' : '';
+      }
+
+      /* ======================================================================
+         Wiring
+         ====================================================================== */
+      $('#resRows').innerHTML = [0, 1, 2, 3, 4, 5].map(i => {
+        const ad = 0x3002 + i, id = maddr(ad);
+        return `<div class="r" data-anchor="${id}" id="row-${id}"><div class="k"><b>${dh(ad, 4)}</b><span id="k-${id}"></span></div><div class="vs"><div class="v" id="v-${id}"></div><div class="s" id="s-${id}"></div></div></div>`;
+      }).join('');
+      $('#speed').addEventListener('change', e => { speedF = parseFloat(e.target.value); });
+      ['wheel', 'touchstart', 'keydown'].forEach(ev => $('#code').addEventListener(ev, () => { $('#code')._goal = undefined; }, { passive: true }));
+      $('#btnRun').addEventListener('click', runProgram);
+      $('#btnStep').addEventListener('click', stepOnce);
+      $('#btnReset').addEventListener('click', loadProgram);
+      ['#numA', '#numB'].forEach(s => {
+        $(s).addEventListener('input', onInputsChange);
+        $(s).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); runProgram(); } });
+      });
+      $$('input[name=op]').forEach(r => r.addEventListener('change', onInputsChange));
+      $('#conToggle').addEventListener('click', e => {
+        const log = $('#log'); log.hidden = !log.hidden;
+        e.currentTarget.setAttribute('aria-expanded', String(!log.hidden));
+        e.currentTarget.textContent = log.hidden ? 'Show log' : 'Hide log';
+      });
+
+      loadProgram();
+    })();
+  </script>
+</body>
+
+</html>
